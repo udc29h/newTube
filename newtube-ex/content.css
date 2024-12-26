@@ -93,9 +93,30 @@
     color: white;
 }
 
+.video-block-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 1000;
+    cursor: not-allowed;
+    background: transparent;
+}
+
 .blurred-video {
     filter: blur(20px);
     pointer-events: none;
+}
+
+.age-restricted-video .ytp-chrome-bottom,
+.age-restricted-video .ytp-progress-bar-container,
+.age-restricted-video .ytp-chrome-controls {
+    display: none !important;
+}
+
+.age-restricted-video .html5-video-player {
+    pointer-events: none !important;
 }
 
 .age-warning {
