@@ -21,6 +21,9 @@ class VideoAgeRating {
             return;
         }
         
+        // Clean up existing UI before initializing new one
+        this.cleanupUI();
+        
         // Wait for YouTube to load its UI
         await this.waitForYouTubeUI();
         await this.insertRatingUI();
@@ -29,10 +32,29 @@ class VideoAgeRating {
         this.observeVideoChanges();
     }
 
-    // Debounce utility
-    debounce(func, wait) {
-        clearTimeout(this.debounceTimeout);
-        this.debounceTimeout = setTimeout(func, wait);
+    cleanupUI() {
+        // Remove age rating container
+        const existingContainer = document.querySelector('#age-rating-container');
+        if (existingContainer) {
+            existingContainer.remove();
+        }
+
+        // Remove age warning if exists
+        const existingWarning = document.querySelector('.age-warning');
+        if (existingWarning) {
+            existingWarning.remove();
+        }
+
+        // Remove video blur if exists
+        const video = document.querySelector('video');
+        if (video) {
+            video.classList.remove('blurred-video');
+            // Remove any existing play event listeners
+            const newVideo = video.cloneNode(true);
+            video.parentNode.replaceChild(newVideo, video);
+        }
+
+        this.isUIInserted = false;
     }
 
     async waitForYouTubeUI() {
@@ -116,7 +138,7 @@ class VideoAgeRating {
         }
 
         // Find the owner-container (contains subscribe button and other elements)
-        const ownerContainer = document.querySelector('#owner');
+        const ownerContainer = document.querySelector('#top-row');
         
         if (ownerContainer) {
             console.log('Found owner container, inserting UI after it');
@@ -162,47 +184,61 @@ class VideoAgeRating {
 
     async submitVote(age) {
         try {
+            // Generate or get user ID from storage
+            const { userId } = await chrome.storage.sync.get('userId');
+            let currentUserId = userId;
+            
+            if (!currentUserId) {
+                currentUserId = 'user_' + Date.now() + Math.random().toString(36).substr(2, 9);
+                await chrome.storage.sync.set({ userId: currentUserId });
+            }
+
             const response = await fetch(`${this.apiUrl}/ratings/${this.videoId}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ age: parseInt(age) })
+                body: JSON.stringify({ 
+                    age: parseInt(age),
+                    userId: currentUserId
+                })
             });
 
             if (!response.ok) {
+                const error = await response.json();
+                if (error.error === 'User has already voted for this video') {
+                    this.showNotification('You have already voted for this video!');
+                    return;
+                }
                 throw new Error('Failed to submit vote');
             }
 
-            // Update UI after successful vote
-            const ratingData = await this.fetchRatingData();
-            this.updateRatingStats(ratingData);
+            const result = await response.json();
+            this.updateRatingStats(result);
             this.highlightSelectedVote(age);
+            this.showNotification('Your vote has been recorded!');
+
         } catch (error) {
             console.error('Error submitting vote:', error);
+            this.showNotification('Failed to submit vote. Please try again.');
         }
     }
 
-    calculateRatingStats(ratings) {
-        if (!ratings || !ratings.length) {
-            return { average: 18, totalVotes: 0, voteCounts: { 7: 0, 12: 0, 16: 0, 18: 0 } }; // Default to 18+ if no votes
+    calculateRatingStats(ratingData) {
+        if (!ratingData || !ratingData.votes || !ratingData.votes.length) {
+            return { average: 18, totalVotes: 0, voteCounts: { 7: 0, 12: 0, 16: 0, 18: 0 } };
         }
         
-        // Count votes for each age category
-        const voteCounts = {
+        const voteCounts = ratingData.voteCounts || {
             7: 0,
             12: 0,
             16: 0,
             18: 0
         };
         
-        ratings.forEach(rating => {
-            voteCounts[rating.age]++;
-        });
-
         // Find the age category with maximum votes
         let maxVotes = 0;
-        let maxAge = 18; // Default to 18 if there's a tie
+        let maxAge = 18;
         
         Object.entries(voteCounts).forEach(([age, count]) => {
             if (count > maxVotes || (count === maxVotes && parseInt(age) > maxAge)) {
@@ -213,7 +249,7 @@ class VideoAgeRating {
 
         return {
             average: maxAge,
-            totalVotes: ratings.length,
+            totalVotes: ratingData.votes.length,
             voteCounts: voteCounts
         };
     }
@@ -274,7 +310,14 @@ class VideoAgeRating {
             );
 
             if (hasRelevantChanges) {
-                this.debounce(() => this.checkAgeRestriction(), 1000);
+                const newVideoId = this.getVideoId();
+                if (newVideoId !== this.videoId) {
+                    console.log('Video changed, reinitializing...');
+                    this.videoId = newVideoId;
+                    this.init();
+                } else {
+                    this.debounce(() => this.checkAgeRestriction(), 1000);
+                }
             }
         });
         
@@ -284,6 +327,24 @@ class VideoAgeRating {
                 childList: true,
                 subtree: true,
                 attributes: false
+            });
+        }
+
+        // Also observe URL changes for SPA navigation
+        const urlObserver = new MutationObserver(() => {
+            const newVideoId = this.getVideoId();
+            if (newVideoId !== this.videoId) {
+                console.log('URL changed, reinitializing...');
+                this.videoId = newVideoId;
+                this.init();
+            }
+        });
+
+        const bodyObserver = document.querySelector('body');
+        if (bodyObserver) {
+            urlObserver.observe(bodyObserver, {
+                childList: true,
+                subtree: true
             });
         }
     }
@@ -332,6 +393,20 @@ class VideoAgeRating {
         } catch (error) {
             console.error('Error checking age restriction:', error);
         }
+    }
+
+    showNotification(message) {
+        const notification = document.createElement('div');
+        notification.className = 'notification';
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        setTimeout(() => notification.remove(), 3000);
+    }
+
+    // Debounce utility
+    debounce(func, wait) {
+        clearTimeout(this.debounceTimeout);
+        this.debounceTimeout = setTimeout(func, wait);
     }
 }
 
