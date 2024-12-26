@@ -1,6 +1,6 @@
 {
     "manifest_version": 3,
-    "name": "Video Age Rating",
+    "name": "ContentSage for YouTube",
     "version": "1.1.1",
     "description": "Age rating system for YouTube videos with community voting",
     "permissions": [
