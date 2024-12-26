@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE specific files
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# Operating System Files
+.DS_Store
+Thumbs.db
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+debug.log
+
+# Build output
+dist/
+build/
+*.crx
+*.pem
+
+# Testing
+coverage/
+
+# Temporary files
+*.swp
+*.swo
+*~
+
+# Chrome Extension specific
+*.zip
+*.crx
+*.pem
+*.nex
+
+# Local development files
+.cache/
+.temp/
+.tmp/
