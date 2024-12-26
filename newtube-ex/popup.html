@@ -1,55 +1,159 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Video Age Rating</title>
+    <title>ContentSage</title>
     <style>
+        :root {
+            --yt-dark-bg: #0f0f0f;
+            --yt-dark-surface: #212121;
+            --yt-red: #ff0000;
+            --yt-red-hover: #cc0000;
+            --yt-text: #ffffff;
+            --yt-text-secondary: #aaaaaa;
+        }
+
         body {
             width: 300px;
-            padding: 15px;
-            font-family: Arial, sans-serif;
+            padding: 16px;
+            margin: 0;
+            font-family: 'Roboto', sans-serif;
+            background: var(--yt-dark-bg);
+            color: var(--yt-text);
         }
+
         .container {
-            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
         }
-        input[type="number"] {
-            width: 60px;
-            padding: 5px;
-            margin: 10px 0;
+
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 16px;
         }
+
+        .header img {
+            width: 24px;
+            height: 24px;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 18px;
+            color: var(--yt-text);
+        }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: var(--yt-dark-surface);
+            padding: 16px;
+            border-radius: 8px;
+        }
+
+        label {
+            font-size: 14px;
+            color: var(--yt-text-secondary);
+        }
+
+        select, input {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #333;
+            background: var(--yt-dark-bg);
+            color: var(--yt-text);
+            font-size: 14px;
+        }
+
         button {
-            background-color: #4CAF50;
+            background: var(--yt-red);
             color: white;
-            padding: 8px 16px;
             border: none;
+            padding: 10px 16px;
             border-radius: 4px;
             cursor: pointer;
-            margin-top: 10px;
+            font-weight: 500;
+            transition: background 0.2s;
         }
+
         button:hover {
-            background-color: #45a049;
+            background: var(--yt-red-hover);
         }
-        .status {
-            margin-top: 15px;
-            font-weight: bold;
+
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
         }
+
         .error {
-            color: red;
+            color: var(--yt-red);
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        .success {
+            color: #00c853;
+            font-size: 12px;
+            margin-top: 4px;
+        }
+
+        #passwordSection, #changeAgeSection {
+            display: none;
+        }
+
+        .lock-icon {
+            color: var(--yt-red);
+            margin-right: 8px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>Video Age Rating</h2>
-        <div id="age-form">
-            <label for="age">Enter your age:</label><br>
-            <input type="number" id="age" min="1" max="100"><br>
-            <button id="save-age">Save Age</button>
+        <div class="header">
+            <span class="lock-icon">🔒</span>
+            <h1>Video Age Rating</h1>
         </div>
-        <div id="current-age" style="display: none">
-            <p>Your age: <span id="age-display"></span></p>
-            <button id="change-age">Change Age</button>
+
+        <!-- Initial Setup Section -->
+        <div id="setupSection" class="input-group">
+            <label>Set Your Age</label>
+            <select id="ageSelect">
+                <option value="7">7 years</option>
+                <option value="12">12 years</option>
+                <option value="16">16 years</option>
+                <option value="18">18 years</option>
+            </select>
+            <label>Create Password</label>
+            <input type="password" id="setupPassword" placeholder="Enter password">
+            <input type="password" id="confirmPassword" placeholder="Confirm password">
+            <button id="setupButton">Set Age & Password</button>
+            <div id="setupError" class="error"></div>
         </div>
-        <div class="status" id="status"></div>
+
+        <!-- Password Entry Section -->
+        <div id="passwordSection" class="input-group">
+            <label>Enter Password to Change Age</label>
+            <input type="password" id="password" placeholder="Enter password">
+            <button id="submitPassword">Submit</button>
+            <div id="passwordError" class="error"></div>
+        </div>
+
+        <!-- Change Age Section -->
+        <div id="changeAgeSection" class="input-group">
+            <label>Current Age: <span id="currentAge">--</span></label>
+            <label>Change Age</label>
+            <select id="newAgeSelect">
+                <option value="7">7 years</option>
+                <option value="12">12 years</option>
+                <option value="16">16 years</option>
+                <option value="18">18 years</option>
+            </select>
+            <button id="updateAge">Update Age</button>
+            <div id="updateSuccess" class="success"></div>
+        </div>
     </div>
     <script src="popup.js"></script>
 </body>
