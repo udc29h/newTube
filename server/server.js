@@ -7,7 +7,16 @@ const Rating = require('./models/rating');
 const app = express();
 
 // Middleware
-app.use(cors());
+const corsOptions = {
+    origin: [
+        'chrome-extension://kbfnbcaeplbcioakkpcpgfkobkghlhen', 
+        'https://contentsageserver-aaz1j81nv-udc29hs-projects.vercel.app'
+    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 mongoose.set('strictQuery', true);
