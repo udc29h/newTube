@@ -2,7 +2,7 @@ console.log('Content script loaded');
 
 class VideoAgeRating {
     constructor() {
-        this.apiUrl = 'http://localhost:3000/api';
+        this.apiUrl = 'https://contentsageserver.vercel.app/api';
         this.videoId = this.getVideoId();
         this.isUIInserted = false;
         this.debounceTimeout = null;

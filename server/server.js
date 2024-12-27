@@ -7,7 +7,13 @@ const Rating = require('./models/rating');
 const app = express();
 
 // Middleware
-app.use(cors());
+const corsOptions = {
+    origin: '*', 
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 mongoose.set('strictQuery', true);
