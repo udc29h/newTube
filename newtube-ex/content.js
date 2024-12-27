@@ -2,10 +2,13 @@ console.log('Content script loaded');
 
 class VideoAgeRating {
     constructor() {
-        this.apiUrl = 'http://localhost:3000/api';
+        this.apiUrl = 'https://contentsageserver.vercel.app/api';
         this.videoId = this.getVideoId();
         this.isUIInserted = false;
         this.debounceTimeout = null;
+        this.preventPlay = null;
+        this.observer = null;
+        this.urlChangeListener = null;
         this.init();
     }
 
@@ -21,40 +24,50 @@ class VideoAgeRating {
             return;
         }
         
-        // Clean up existing UI before initializing new one
-        this.cleanupUI();
+        // Clean up existing UI and observers before initializing new one
+        this.cleanup();
         
         // Wait for YouTube to load its UI
         await this.waitForYouTubeUI();
         await this.insertRatingUI();
         await this.checkAgeRestriction();
         this.addVoteListeners();
-        this.observeVideoChanges();
+        this.setupObservers();
     }
 
-    cleanupUI() {
-        // Remove age rating container
-        const existingContainer = document.querySelector('#age-rating-container');
-        if (existingContainer) {
-            existingContainer.remove();
+    cleanup() {
+        // Remove all observers
+        if (this.observer) {
+            this.observer.disconnect();
+        }
+        if (this.urlChangeListener) {
+            window.removeEventListener('yt-navigate-finish', this.urlChangeListener);
+            window.removeEventListener('yt-page-data-updated', this.urlChangeListener);
         }
 
-        // Remove age warning if exists
-        const existingWarning = document.querySelector('.age-warning');
-        if (existingWarning) {
-            existingWarning.remove();
-        }
+        // Remove all UI elements
+        document.querySelectorAll('.age-rating-container').forEach(el => el.remove());
+        document.querySelectorAll('.age-warning').forEach(el => el.remove());
+        document.querySelectorAll('.video-block-overlay').forEach(el => el.remove());
 
-        // Remove video blur if exists
+        // Clean up video
         const video = document.querySelector('video');
+        const player = document.querySelector('.html5-video-player');
         if (video) {
             video.classList.remove('blurred-video');
-            // Remove any existing play event listeners
-            const newVideo = video.cloneNode(true);
-            video.parentNode.replaceChild(newVideo, video);
+            if (this.preventPlay) {
+                video.removeEventListener('play', this.preventPlay, true);
+                video.removeEventListener('playing', this.preventPlay, true);
+                video.removeEventListener('timeupdate', this.preventPlay, true);
+            }
+            video.controls = true;
+        }
+        if (player) {
+            player.classList.remove('age-restricted-video');
         }
 
         this.isUIInserted = false;
+        this.preventPlay = null;
     }
 
     async waitForYouTubeUI() {
@@ -79,12 +92,19 @@ class VideoAgeRating {
     }
 
     async insertRatingUI() {
-        console.log('Attempting to insert rating UI');
-        
         if (this.isUIInserted) {
             console.log('UI already inserted, skipping');
             return;
         }
+
+        const elements = await this.waitForYouTubeUI();
+        if (!elements) {
+            console.error('Could not find required elements');
+            return;
+        }
+
+        // Remove any existing containers first
+        document.querySelectorAll('.age-rating-container').forEach(el => el.remove());
 
         const container = document.createElement('div');
         container.className = 'age-rating-container';
@@ -130,12 +150,6 @@ class VideoAgeRating {
                 <button class="vote-button" data-age="18">18+</button>
             </div>
         `;
-
-        const elements = await this.waitForYouTubeUI();
-        if (!elements) {
-            console.error('Could not find required elements');
-            return;
-        }
 
         // Find the owner-container (contains subscribe button and other elements)
         const ownerContainer = document.querySelector('#top-row');
@@ -301,52 +315,44 @@ class VideoAgeRating {
         });
     }
 
-    observeVideoChanges() {
-        const observer = new MutationObserver((mutations) => {
-            const hasRelevantChanges = mutations.some(mutation => 
-                mutation.target.id === 'content' || 
-                mutation.target.id === 'description' ||
-                mutation.target.id === 'above-the-fold'
-            );
-
-            if (hasRelevantChanges) {
-                const newVideoId = this.getVideoId();
-                if (newVideoId !== this.videoId) {
-                    console.log('Video changed, reinitializing...');
-                    this.videoId = newVideoId;
-                    this.init();
-                } else {
-                    this.debounce(() => this.checkAgeRestriction(), 1000);
-                }
-            }
-        });
-        
-        const targetNode = document.querySelector('#content, #above-the-fold');
-        if (targetNode) {
-            observer.observe(targetNode, {
-                childList: true,
-                subtree: true,
-                attributes: false
-            });
-        }
-
-        // Also observe URL changes for SPA navigation
-        const urlObserver = new MutationObserver(() => {
+    setupObservers() {
+        // Setup mutation observer for content changes
+        this.observer = new MutationObserver((mutations) => {
             const newVideoId = this.getVideoId();
             if (newVideoId !== this.videoId) {
-                console.log('URL changed, reinitializing...');
+                console.log('Video changed, reinitializing...', newVideoId);
                 this.videoId = newVideoId;
                 this.init();
             }
         });
 
-        const bodyObserver = document.querySelector('body');
-        if (bodyObserver) {
-            urlObserver.observe(bodyObserver, {
+        // Observe both content and navigation elements
+        const targets = [
+            document.querySelector('#content'),
+            document.querySelector('#above-the-fold'),
+            document.querySelector('ytd-watch-flexy')
+        ].filter(Boolean);
+
+        targets.forEach(target => {
+            this.observer.observe(target, {
                 childList: true,
-                subtree: true
+                subtree: true,
+                attributes: true
             });
-        }
+        });
+
+        // Setup URL change listener
+        this.urlChangeListener = () => {
+            const newVideoId = this.getVideoId();
+            if (newVideoId !== this.videoId) {
+                console.log('URL changed, reinitializing...', newVideoId);
+                this.videoId = newVideoId;
+                this.init();
+            }
+        };
+
+        window.addEventListener('yt-navigate-finish', this.urlChangeListener);
+        window.addEventListener('yt-page-data-updated', this.urlChangeListener);
     }
 
     async checkAgeRestriction() {
@@ -366,29 +372,66 @@ class VideoAgeRating {
             const video = document.querySelector('video');
             if (!video) return;
 
-            if (userAge < requiredAge) {
+            const player = document.querySelector('.html5-video-player');
+            if (!player) return;
+
+            // Remove any existing event listeners
+            if (this.preventPlay) {
+                video.removeEventListener('play', this.preventPlay, true);
+                video.removeEventListener('playing', this.preventPlay, true);
+                video.removeEventListener('timeupdate', this.preventPlay, true);
+            }
+
+            if (userAge > requiredAge) {
+                video.classList.remove('blurred-video');
+                player.classList.remove('age-restricted-video');
+                video.controls = true;
+                const warning = document.querySelector('.age-warning');
+                const overlay = document.querySelector('.video-block-overlay');
+                if (warning) warning.remove();
+                if (overlay) overlay.remove();
+            } else {
+                // Create video container if it doesn't exist
+                let videoContainer = video.parentElement;
+                if (!videoContainer.style.position) {
+                    videoContainer.style.position = 'relative';
+                }
+
                 video.classList.add('blurred-video');
+                player.classList.add('age-restricted-video');
                 video.pause();
-                video.addEventListener('play', function preventPlay(e) {
+                video.currentTime = 0;
+                video.controls = false;
+
+                // Create new event listener function
+                this.preventPlay = (e) => {
                     e.preventDefault();
+                    e.stopPropagation();
                     video.pause();
-                });
+                    video.currentTime = 0;
+                    return false;
+                };
+
+                // Add event listeners
+                video.addEventListener('play', this.preventPlay, true);
+                video.addEventListener('playing', this.preventPlay, true);
+                video.addEventListener('timeupdate', this.preventPlay, true);
+
+                // Add a transparent overlay to prevent clicking
+                let overlay = document.querySelector('.video-block-overlay');
+                if (!overlay) {
+                    overlay = document.createElement('div');
+                    overlay.className = 'video-block-overlay';
+                    videoContainer.appendChild(overlay);
+                }
 
                 let warning = document.querySelector('.age-warning');
                 if (!warning) {
                     warning = document.createElement('div');
                     warning.className = 'age-warning';
-                    video.parentNode.insertBefore(warning, video.nextSibling);
+                    videoContainer.appendChild(warning);
                 }
                 warning.textContent = `This video requires age ${requiredAge}+. You are ${userAge} years old.`;
-            } else {
-                video.classList.remove('blurred-video');
-                video.removeEventListener('play', function preventPlay(e) {
-                    e.preventDefault();
-                    video.pause();
-                });
-                const warning = document.querySelector('.age-warning');
-                if (warning) warning.remove();
             }
         } catch (error) {
             console.error('Error checking age restriction:', error);
