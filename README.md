@@ -1,7 +1,13 @@
+
+
 # NewTube 🎥
 
 ## Overview
 NewTube is a modern web application designed to enhance your video browsing and rating experience. It provides a sleek, intuitive interface for discovering and interacting with video content.
+
+# Step 1 : Download the zip file
+# Step 2 : unzip it
+# Step 3 : load unpacked in your chrome/edge browser and enjoy :)
 
 ## Features
 - 🌟 Video rating system
