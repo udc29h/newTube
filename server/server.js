@@ -8,10 +8,7 @@ const app = express();
 
 // Middleware
 const corsOptions = {
-    origin: [
-        'chrome-extension://kbfnbcaeplbcioakkpcpgfkobkghlhen', 
-        'https://contentsageserver-aaz1j81nv-udc29hs-projects.vercel.app'
-    ],
+    origin: '*', 
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization']
 };
