@@ -29,6 +29,10 @@ mongoose.connect(process.env.MONGODB_URI, {
 });
 
 // Get ratings for a video
+app.get('/', (req, res) => {
+    res.send('Hello, World! This is Uday server.');
+});
+
 app.get('/api/ratings/:videoId', async (req, res) => {
     try {
         const { videoId } = req.params;
